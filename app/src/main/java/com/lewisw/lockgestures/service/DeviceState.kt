@@ -1,4 +1,4 @@
-package com.lewisw.lockgestures
+package com.lewisw.lockgestures.service
 
 import android.app.KeyguardManager
 import android.content.Context

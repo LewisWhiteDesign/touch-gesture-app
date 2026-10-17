@@ -1,42 +1,38 @@
 # Lock Gestures
 
-Trigger quick actions from the Galaxy Z Fold 7's **cover screen lock screen** without unlocking.
+Run quick actions from the Galaxy Z Fold 7's **cover-screen lock screen** without unlocking,
+using tap/swipe zones you draw, the volume keys, or flicks of the phone.
 
-**Current features**
-- Shake twice sharply → toggle the torch (with a vibration to confirm: one buzz = on, two = off)
-- Works only when folded and locked (both can be switched off for testing)
+## How it's organised
 
-**Planned:** taps/swipes on the cover lock screen, airplane mode, hotspot (via Shizuku).
+- **Zones** – a mini preview of the cover screen. **Set** opens a full-screen editor where you add,
+  move and resize touch zones. **Clear** removes all zones and functions.
+- **Functions** – rows of *Trigger · Zone · Action*. Tap **Add function** to create one.
 
-## Getting the APK
+| Trigger | Zone | Action |
+|---|---|---|
+| Single/Double Tap, Swipe Up/Down/Left/Right, Press + Hold | Zone 1…n | Torch, Brightness ±, Silent mode — done directly |
+| Single/Double Press, Press + Hold | Volume Up / Down | Wi-Fi, Bluetooth, Airplane, Hotspot, NFC, Battery saver — taps the Quick Settings tile |
+| Flick / Double Flick | Gyro Up/Down/Left/Right/Back/Forth | Open app, Close app, Close all apps — asks for PIN first |
 
-Every push to `main` builds automatically. Open the repo's **Releases** page on your phone,
-download the latest `LockGestures-*.apk`, and install it. Updates install over the top.
+Everything runs inside this one app via an Accessibility Service (the only way an app may draw
+over the lock screen and read the volume keys).
 
-Before installing on the Fold 7:
-1. Turn off **Auto Blocker** (Settings → Security and privacy → Auto Blocker).
-2. Allow your browser/file manager to **install unknown apps**.
+## Install on the Fold 7
 
-After installing, open the app and:
-1. Turn on **Enable lock-screen gestures**.
-2. Tap **Allow notifications** and **Let it run in the background**.
-3. Settings → Battery → Background usage limits → **Never sleeping apps** → add Lock Gestures.
+1. Turn off **Auto Blocker** (Settings → Security and privacy).
+2. Download the latest `LockGestures-*.apk` from the repo's **Releases** page and install it.
+3. App info → ⋮ → **Allow restricted settings**.
+4. Settings → Accessibility → Installed apps → **Lock Gestures** → on.
+5. In the app's Settings screen, grant Silent mode and Brightness access if you use those actions.
+6. Settings → Lock screen and AOD → Secure lock settings → turn off **Lock network and security**.
+7. Put the Quick Settings tiles you use on the first page of the panel.
 
-## Running in the emulator (Android Studio)
+## Emulator (Android Studio)
 
-1. `git clone https://github.com/lewisw445/lockscreen-gestures` and open the folder in Android Studio.
-2. Device Manager → create a device using **7.6" Fold-in with outer display**, Android 16 (API 36).
-3. Press ▶ Run. Fold the emulated device (toolbar → fold button) so it uses the outer screen.
-4. In the app, enable gestures. To test without locking, switch off **Only on the lock screen**.
-5. Simulate a shake: emulator `⋮` → **Virtual sensors** → drag the phone model quickly back and forth,
-   or from a terminal:
-
-   ```
-   adb emu sensor set acceleration 25:0:9.8
-   adb emu sensor set acceleration 0:0:9.8
-   adb emu sensor set acceleration -25:0:9.8
-   adb emu sensor set acceleration 0:0:9.8
-   ```
-
-   The emulator has no flash, so the app will report "no flash on this device" — that still
-   proves the shake was detected. The **Last gesture** line in the app and the notification update.
+1. Clone this repo and open it in Android Studio.
+2. Device Manager → **7.6" Fold-in with outer display**, Android 16 (API 36). Fold it.
+3. Run, then enable the service under Settings → Accessibility on the emulator.
+4. In the app's Settings, turn off **Only on the lock screen** to test while unlocked.
+5. Volume keys: emulator side toolbar. Motion: ⋮ → **Virtual sensors**.
+   The emulator has no flash, so Torch reports "no flash on this device".

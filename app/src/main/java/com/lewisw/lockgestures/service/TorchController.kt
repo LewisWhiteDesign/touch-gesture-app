@@ -1,4 +1,4 @@
-package com.lewisw.lockgestures
+package com.lewisw.lockgestures.service
 
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics

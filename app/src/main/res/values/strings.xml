@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Lock Gestures</string>
+    <string name="accessibility_description">Lets Lock Gestures react to taps, swipes, volume keys and motion on your cover-screen lock screen, and switch Quick Settings tiles such as Wi-Fi or Airplane mode for you. It only acts on the gestures you set up and does not read or store anything you type.</string>
 </resources>
