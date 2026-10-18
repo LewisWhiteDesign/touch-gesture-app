@@ -1,5 +1,7 @@
 package com.lewisw.lockgestures.model
 
+import androidx.annotation.DrawableRes
+import com.lewisw.lockgestures.R
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -66,23 +68,30 @@ data class Source(val kind: SourceKind, val zoneId: Int = 0) {
 enum class Action(
     val label: String,
     val short: String,
+    @DrawableRes val icon: Int,
     val needsUnlock: Boolean = false,
     /** Name(s) of the Quick Settings tile this action taps, if it works that way. */
     val tileLabels: List<String> = emptyList(),
 ) {
-    TORCH("Torch (On/Off)", "Torch"),
-    AIRPLANE("Airplane Mode (On/Off)", "Airplane", tileLabels = listOf("Airplane mode", "Flight mode", "Aeroplane mode")),
-    WIFI("Wi-Fi (On/Off)", "Wi-Fi", tileLabels = listOf("Wi-Fi", "Wi‑Fi", "WiFi", "Wifi", "WLAN")),
-    BLUETOOTH("Bluetooth (On/Off)", "Bluetooth", tileLabels = listOf("Bluetooth")),
-    HOTSPOT("Wireless Hotspot (On/Off)", "Hotspot", tileLabels = listOf("Mobile Hotspot", "Hotspot", "Mobile hotspot")),
-    NFC("NFC (On/Off)", "NFC", tileLabels = listOf("NFC")),
-    OPEN_APP("Open App (Unlock Required)", "Open app", needsUnlock = true),
-    CLOSE_APP("Close App (Unlock Required)", "Close app", needsUnlock = true),
-    CLOSE_ALL("Close All Apps (Unlock Required)", "Close all", needsUnlock = true),
-    BRIGHTNESS_UP("Brightness Up", "Bright +"),
-    BRIGHTNESS_DOWN("Brightness Down", "Bright −"),
-    SILENT("Silent Mode (On/Off)", "Silent"),
-    BATTERY_SAVER("Battery Saver (On/Off)", "Batt. saver", tileLabels = listOf("Power saving", "Battery saver", "Power saving mode")),
+    TORCH("Torch (On/Off)", "Torch", R.drawable.ic_act_torch),
+    AIRPLANE("Airplane Mode (On/Off)", "Airplane Mode", R.drawable.ic_act_airplane,
+        tileLabels = listOf("Airplane mode", "Flight mode", "Aeroplane mode")),
+    WIFI("Wi-Fi (On/Off)", "Wi-Fi", R.drawable.ic_act_wifi,
+        tileLabels = listOf("Wi-Fi", "Wi\u2011Fi", "WiFi", "Wifi", "WLAN")),
+    BLUETOOTH("Bluetooth (On/Off)", "Bluetooth", R.drawable.ic_act_bluetooth, tileLabels = listOf("Bluetooth")),
+    HOTSPOT("Wireless Hotspot (On/Off)", "Hotspot", R.drawable.ic_act_hotspot,
+        tileLabels = listOf("Mobile Hotspot", "Hotspot", "Mobile hotspot")),
+    NFC("NFC (On/Off)", "NFC", R.drawable.ic_act_nfc, tileLabels = listOf("NFC")),
+    OPEN_APP("Open App (Unlock Required)", "Open App", R.drawable.ic_act_open_app, needsUnlock = true),
+    CLOSE_APP("Close App (Unlock Required)", "Close App", R.drawable.ic_act_close_app, needsUnlock = true),
+    CLOSE_ALL("Close All Apps (Unlock Required)", "Close All Apps", R.drawable.ic_act_close_all, needsUnlock = true),
+    BRIGHTNESS_UP("Brightness Up", "Brightness Up", R.drawable.ic_act_brightness_up),
+    BRIGHTNESS_DOWN("Brightness Down", "Brightness Down", R.drawable.ic_act_brightness_down),
+    VOLUME_UP("Volume Up", "Volume Up", R.drawable.ic_act_volume_up),
+    VOLUME_DOWN("Volume Down", "Volume Down", R.drawable.ic_act_volume_down),
+    SILENT("Silent Mode (On/Off)", "Silent Mode", R.drawable.ic_act_silent),
+    BATTERY_SAVER("Battery Saver (On/Off)", "Battery Saver", R.drawable.ic_act_battery_saver,
+        tileLabels = listOf("Power saving", "Battery saver", "Power saving mode")),
 }
 
 /** A touch zone, stored as fractions (0..1) of the full screen so it survives size changes. */

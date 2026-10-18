@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.app.NotificationManager
 import android.content.Intent
 import android.graphics.Path
+import android.graphics.Rect
 import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
@@ -20,7 +21,12 @@ import com.lewisw.lockgestures.model.GestureFunction
  * airplane mode, hotspot…) are done by tapping the matching Quick Settings tile,
  * because Android doesn't let ordinary apps switch those directly.
  */
-class ActionRunner(private val service: AccessibilityService) {
+class ActionRunner(
+    private val service: AccessibilityService,
+    private val inspector: ScreenInspector,
+    /** Called with true before an automated tap sequence and false after, so zones can hide. */
+    private val onAutomation: (Boolean) -> Unit,
+) {
 
     private val handler = Handler(Looper.getMainLooper())
     private val torch = TorchController(service).also { it.start() }
@@ -52,6 +58,8 @@ class ActionRunner(private val service: AccessibilityService) {
             Action.BRIGHTNESS_UP -> report(changeBrightness(+1))
             Action.BRIGHTNESS_DOWN -> report(changeBrightness(-1))
             Action.SILENT -> report(toggleSilent())
+            Action.VOLUME_UP -> report(changeVolume(AudioManager.ADJUST_RAISE))
+            Action.VOLUME_DOWN -> report(changeVolume(AudioManager.ADJUST_LOWER))
             Action.OPEN_APP -> report(openApp(f.appPackage))
             Action.CLOSE_APP -> closeApps(all = false, report)
             Action.CLOSE_ALL -> closeApps(all = true, report)
@@ -74,6 +82,15 @@ class ActionRunner(private val service: AccessibilityService) {
         } catch (e: Exception) {
             "brightness failed"
         }
+    }
+
+    private fun changeVolume(direction: Int): String = try {
+        service.getSystemService(AudioManager::class.java).adjustSuggestedStreamVolume(
+            direction, AudioManager.USE_DEFAULT_STREAM_TYPE, AudioManager.FLAG_SHOW_UI
+        )
+        if (direction == AudioManager.ADJUST_RAISE) "volume up" else "volume down"
+    } catch (e: Exception) {
+        "volume change blocked (Do Not Disturb?)"
     }
 
     private fun toggleSilent(): String {
@@ -134,28 +151,71 @@ class ActionRunner(private val service: AccessibilityService) {
 
     // ---- Quick Settings tile tapping ----------------------------------------
 
+    /**
+     * Opens the Quick Settings panel, taps the tile's icon exactly like a finger
+     * would, then closes the panel again. Our own zones are hidden meanwhile so
+     * they can't get in the way of the tap.
+     */
     private fun tapTile(action: Action, report: (String) -> Unit) {
         if (busy) return
         busy = true
+        onAutomation(true)
         service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS)
         val started = System.currentTimeMillis()
 
-        fun attempt() {
-            val node = findNode(action.tileLabels)
-            when {
-                node != null -> {
-                    val ok = clickNode(node)
-                    handler.postDelayed({ closeShade(); busy = false }, 450)
-                    report(if (ok) "tapped ${action.short} tile" else "couldn't tap ${action.short} tile")
-                }
-                System.currentTimeMillis() - started > 1600 -> {
-                    closeShade(); busy = false
-                    report("couldn't find the ${action.short} tile — put it on the first page of Quick Settings")
-                }
-                else -> handler.postDelayed({ attempt() }, 150)
+        fun finish(message: String) {
+            report(message)
+            closeShade()
+            handler.postDelayed({ busy = false; onAutomation(false) }, 300)
+        }
+
+        fun checkResult() {
+            if (inspector.bouncerShowing()) {
+                // Samsung wants the PIN for this tile: cancel the prompt rather than leave it up.
+                service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                finish("Samsung asked for your PIN for ${action.short} — turn off 'Lock network and security'")
+            } else {
+                finish("tapped ${action.short}")
             }
         }
-        handler.postDelayed({ attempt() }, 350)
+
+        fun attempt() {
+            val node = inspector.findNode(action.tileLabels)
+            when {
+                node != null -> {
+                    val tile = clickableAncestor(node) ?: node
+                    val target = tileIcon(tile) ?: tile
+                    val r = Rect()
+                    target.getBoundsInScreen(r)
+                    if (r.isEmpty) {
+                        clickNode(node)
+                        handler.postDelayed({ checkResult() }, 350)
+                    } else {
+                        tapAt(r.exactCenterX(), r.exactCenterY()) { ok ->
+                            if (!ok) clickNode(node)
+                            handler.postDelayed({ checkResult() }, 350)
+                        }
+                    }
+                }
+                System.currentTimeMillis() - started > 1500 ->
+                    finish("couldn't find the ${action.short} tile — put it on the first page of Quick Settings")
+                else -> handler.postDelayed({ attempt() }, 100)
+            }
+        }
+        handler.postDelayed({ attempt() }, 250)
+    }
+
+    /** Sends a real tap to the screen at (x, y). */
+    private fun tapAt(x: Float, y: Float, done: (Boolean) -> Unit) {
+        val path = Path().apply { moveTo(x, y) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 60))
+            .build()
+        val sent = service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) = done(true)
+            override fun onCancelled(gestureDescription: GestureDescription?) = done(false)
+        }, null)
+        if (!sent) done(false)
     }
 
     private fun closeShade() {
@@ -166,36 +226,34 @@ class ActionRunner(private val service: AccessibilityService) {
         }
     }
 
-    /** Searches every window on screen for a node whose text or description starts with one of [labels]. */
-    private fun findNode(labels: List<String>): AccessibilityNodeInfo? {
-        val wanted = labels.map { it.lowercase() }
-        val roots = service.windows.mapNotNull { it.root } + listOfNotNull(service.rootInActiveWindow)
-        for (root in roots) {
-            val queue = ArrayDeque<AccessibilityNodeInfo>()
-            queue.add(root)
-            var visited = 0
-            while (queue.isNotEmpty() && visited < 2000) {
-                val n = queue.removeFirst()
-                visited++
-                val text = (n.contentDescription ?: n.text)?.toString()?.lowercase()?.trim()
-                if (text != null && wanted.any { text == it || text.startsWith("$it,") || text.startsWith("$it ") || text.startsWith(it) }) {
-                    return n
-                }
-                for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
-            }
+    private fun clickableAncestor(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var n: AccessibilityNodeInfo? = node
+        while (n != null) {
+            if (n.isClickable) return n
+            n = n.parent
         }
         return null
     }
 
-    /** Clicks the node, or its nearest clickable parent. */
-    private fun clickNode(node: AccessibilityNodeInfo): Boolean {
-        var n: AccessibilityNodeInfo? = node
-        while (n != null) {
-            if (n.isClickable) return n.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            n = n.parent
+    /** The tile's icon: tapping the icon toggles the tile, whereas the label can open its details. */
+    private fun tileIcon(tile: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(tile)
+        var seen = 0
+        while (queue.isNotEmpty() && seen < 60) {
+            val n = queue.removeFirst()
+            seen++
+            if (n !== tile && n.className?.toString()?.endsWith("ImageView") == true && n.isVisibleToUser) return n
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
         }
-        return false
+        return null
     }
+
+    private fun findNode(labels: List<String>) = inspector.findNode(labels)
+
+    /** Clicks the node, or its nearest clickable parent. */
+    private fun clickNode(node: AccessibilityNodeInfo): Boolean =
+        clickableAncestor(node)?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
 
     private companion object {
         val STEPS = listOf(3, 15, 35, 65, 100, 145, 195, 255)

@@ -5,7 +5,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Icon
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,12 +39,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lewisw.lockgestures.model.Config
+import com.lewisw.lockgestures.model.Source
+import com.lewisw.lockgestures.model.SourceKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -67,6 +75,10 @@ fun DevicePreview(config: Config, modifier: Modifier = Modifier) {
                 .background(cs.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp))
         )
         config.zones.forEachIndexed { i, z ->
+            val icons = config.functions
+                .filter { it.isComplete && it.source == Source(SourceKind.TOUCH, z.id) }
+                .mapNotNull { it.action?.icon }
+                .distinct()
             Box(
                 Modifier
                     .offset(x = w * z.left, y = h * z.top)
@@ -75,7 +87,15 @@ fun DevicePreview(config: Config, modifier: Modifier = Modifier) {
                     .border(1.dp, cs.primary, RoundedCornerShape(6.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("${i + 1}", color = cs.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                if (icons.isEmpty()) {
+                    Text("${i + 1}", color = cs.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                        icons.take(3).forEach { id ->
+                            Icon(painterResource(id), null, Modifier.size(11.dp), tint = cs.primary)
+                        }
+                    }
+                }
             }
         }
         if (config.zones.isEmpty()) {
@@ -89,14 +109,18 @@ fun DevicePreview(config: Config, modifier: Modifier = Modifier) {
     }
 }
 
+/** One choice in a dropdown, optionally with an icon. */
+data class DropOption(val label: String, @DrawableRes val icon: Int? = null, val pick: () -> Unit)
+
 /** A compact dropdown field used in each Functions row. */
 @Composable
 fun DropField(
     value: String?,
     placeholder: String,
-    options: List<Pair<String, () -> Unit>>,
+    options: List<DropOption>,
     modifier: Modifier = Modifier,
     highlight: Boolean = false,
+    @DrawableRes valueIcon: Int? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     val cs = MaterialTheme.colorScheme
@@ -110,7 +134,14 @@ fun DropField(
                 .heightIn(min = 52.dp)
                 .clickable { open = true },
         ) {
-            Box(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                if (valueIcon != null) {
+                    Icon(painterResource(valueIcon), null, Modifier.size(18.dp), tint = cs.onSecondaryContainer)
+                }
                 Text(
                     value ?: placeholder,
                     style = MaterialTheme.typography.labelLarge,
@@ -123,8 +154,14 @@ fun DropField(
             }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { (label, pick) ->
-                DropdownMenuItem(text = { Text(label) }, onClick = { open = false; pick() })
+            options.forEach { o ->
+                DropdownMenuItem(
+                    text = { Text(o.label) },
+                    leadingIcon = o.icon?.let { id ->
+                        { Icon(painterResource(id), null, Modifier.size(20.dp)) }
+                    },
+                    onClick = { open = false; o.pick() },
+                )
             }
         }
     }

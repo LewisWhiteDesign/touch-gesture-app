@@ -259,13 +259,13 @@ private fun FunctionRow(
 
     // Only offer combinations that make sense together.
     val triggerOptions = (kind?.validTriggers() ?: Trigger.entries).map { t ->
-        t.labelFor(kind) to { onChange(f.copy(trigger = t)) }
+        DropOption(t.labelFor(kind)) { onChange(f.copy(trigger = t)) }
     }
     val sourceOptions = config.allSources()
         .filter { s -> f.trigger == null || f.trigger in s.kind.validTriggers() }
-        .map { s -> config.sourceLabel(s) to { onChange(f.copy(source = s)) } }
+        .map { s -> DropOption(config.sourceLabel(s)) { onChange(f.copy(source = s)) } }
     val actionOptions = Action.entries.map { a ->
-        a.label to {
+        DropOption(a.label, a.icon) {
             onChange(if (a == Action.OPEN_APP) f.copy(action = a) else f.copy(action = a, appPackage = null, appLabel = null))
         }
     }
@@ -275,7 +275,7 @@ private fun FunctionRow(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             DropField(f.trigger?.labelFor(kind), "Trigger", triggerOptions, Modifier.weight(1f), highlight = duplicate)
             DropField(f.source?.let { config.sourceLabel(it) }, "Zone", sourceOptions, Modifier.weight(1f), highlight = duplicate)
-            DropField(f.action?.short, "Action", actionOptions, Modifier.weight(1f))
+            DropField(f.action?.short, "Action", actionOptions, Modifier.weight(1f), valueIcon = f.action?.icon)
             IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.Close, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -290,7 +290,7 @@ private fun FunctionRow(
             duplicate -> "Another function uses the same trigger and zone — both will run."
             kind != null && kind.isGyro -> kind.help
             f.action?.needsUnlock == true -> "Asks for your PIN first."
-            f.action?.tileLabels?.isNotEmpty() == true -> "Taps the Quick Settings tile for you."
+            f.action?.tileLabels?.isNotEmpty() == true -> "Taps the Quick Settings tile for you — no unlock needed."
             kind == SourceKind.TOUCH && config.zones.none { it.id == f.source?.zoneId } -> "This zone no longer exists."
             else -> null
         }

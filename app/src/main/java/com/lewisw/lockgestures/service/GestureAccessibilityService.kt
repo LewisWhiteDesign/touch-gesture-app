@@ -47,7 +47,11 @@ class GestureAccessibilityService : AccessibilityService() {
     private lateinit var overlay: ZoneOverlay
     private lateinit var motion: MotionDetector
     private lateinit var runner: ActionRunner
+    private lateinit var inspector: ScreenInspector
     private var active = false
+    /** True while we're tapping Quick Settings for the user; our zones must stay out of the way. */
+    private var automating = false
+    private val debouncedRefresh = Runnable { refresh() }
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = refresh()
@@ -64,7 +68,11 @@ class GestureAccessibilityService : AccessibilityService() {
             sensitivity = { Store.settings.value.motionSensitivity },
             onFlick = { kind -> onPress(Source(kind)) },
         )
-        runner = ActionRunner(this)
+        inspector = ScreenInspector(this)
+        runner = ActionRunner(this, inspector) { on ->
+            automating = on
+            refresh()
+        }
 
         registerReceiver(screenReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
@@ -79,6 +87,7 @@ class GestureAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        handler.removeCallbacksAndMessages(null)
         scope.cancel()
         runCatching { unregisterReceiver(screenReceiver) }
         if (::overlay.isInitialized) overlay.hide()
@@ -88,8 +97,10 @@ class GestureAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Window changes include the lock screen appearing/disappearing.
-        if (::state.isInitialized) refresh()
+        // Window/content changes include the lock screen and the PIN screen appearing.
+        if (!::state.isInitialized) return
+        handler.removeCallbacks(debouncedRefresh)
+        handler.postDelayed(debouncedRefresh, 120)
     }
 
     override fun onInterrupt() = Unit
@@ -121,15 +132,26 @@ class GestureAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Touch zones: only show zones that have a function, so nothing else is blocked.
-        val usedZoneIds = fns.mapNotNull { f -> f.source?.takeIf { it.kind == SourceKind.TOUCH }?.zoneId }.toSet()
-        val zones = config.zones.mapIndexedNotNull { i, z -> if (z.id in usedZoneIds) (i + 1) to z else null }
-        val (w, h) = screenSize()
-        overlay.show(
-            zones, w, h, settings.showZoneOutlines,
-            hasDoubleTap = { id -> fns.any { it.source == Source(SourceKind.TOUCH, id) && it.trigger == Trigger.DOUBLE_TAP } },
-            onGesture = { id, trigger -> fire(Source(SourceKind.TOUCH, id), trigger) },
-        )
+        // Touch zones work on the lock screen only — never on the PIN/pattern screen,
+        // and never while we're tapping Quick Settings.
+        val touchAllowed = !automating && !(state.isLocked && inspector.bouncerShowing())
+        if (touchAllowed) {
+            val (w, h) = screenSize()
+            val specs = config.zones.mapNotNull { z ->
+                val linked = fns.filter { it.source == Source(SourceKind.TOUCH, z.id) }
+                if (linked.isEmpty()) null
+                else ZoneOverlay.Spec(
+                    zone = z,
+                    icons = linked.mapNotNull { it.action?.icon }.distinct(),
+                    waitForDoubleTap = linked.any { it.trigger == Trigger.DOUBLE_TAP },
+                )
+            }
+            overlay.show(specs, w, h, settings.showZoneOutlines) { id, trigger ->
+                fire(Source(SourceKind.TOUCH, id), trigger)
+            }
+        } else {
+            overlay.hide()
+        }
 
         if (fns.any { it.source?.kind?.isGyro == true }) motion.start() else motion.stop()
     }

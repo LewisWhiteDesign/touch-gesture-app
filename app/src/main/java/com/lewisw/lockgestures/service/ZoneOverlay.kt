@@ -15,6 +15,8 @@ import android.view.WindowManager
 import com.lewisw.lockgestures.model.Trigger
 import com.lewisw.lockgestures.model.TouchZone
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Places invisible (or faintly outlined) touch zones over the lock screen.
@@ -26,29 +28,24 @@ class ZoneOverlay(private val context: Context, private val wm: WindowManager) {
     private val views = mutableListOf<View>()
     private var signature = ""
 
-    /**
-     * Shows the given zones. [hasDoubleTap] says whether a zone needs to wait to
-     * tell a single tap from a double tap.
-     */
+    /** A zone to show, with the icons of the actions linked to it. */
+    data class Spec(val zone: TouchZone, val icons: List<Int>, val waitForDoubleTap: Boolean)
+
     fun show(
-        zones: List<Pair<Int, TouchZone>>,
+        specs: List<Spec>,
         screenW: Int,
         screenH: Int,
         outlines: Boolean,
-        hasDoubleTap: (Int) -> Boolean,
         onGesture: (zoneId: Int, Trigger) -> Unit,
     ) {
-        val sig = buildString {
-            append("$screenW x $screenH $outlines;")
-            zones.forEach { (n, z) -> append("$n:${z.id}:${z.left},${z.top},${z.right},${z.bottom};") }
-            zones.forEach { append(hasDoubleTap(it.second.id)) }
-        }
+        val sig = "$screenW x $screenH $outlines;" + specs.joinToString(";")
         if (sig == signature) return
         hide()
         signature = sig
 
-        zones.forEach { (number, zone) ->
-            val view = ZoneView(context, number, outlines, hasDoubleTap(zone.id)) { trigger ->
+        specs.forEach { spec ->
+            val zone = spec.zone
+            val view = ZoneView(context, spec.icons, outlines, spec.waitForDoubleTap) { trigger ->
                 onGesture(zone.id, trigger)
             }
             val lp = WindowManager.LayoutParams(
@@ -65,7 +62,7 @@ class ZoneOverlay(private val context: Context, private val wm: WindowManager) {
                 y = (zone.top * screenH).toInt()
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                title = "LockGestures zone $number"
+                title = "LockGestures zone ${zone.id}"
             }
             runCatching { wm.addView(view, lp); views += view }
         }
@@ -80,7 +77,7 @@ class ZoneOverlay(private val context: Context, private val wm: WindowManager) {
     @SuppressLint("ViewConstructor")
     private class ZoneView(
         context: Context,
-        private val number: Int,
+        iconIds: List<Int>,
         private val outlines: Boolean,
         private val waitForDoubleTap: Boolean,
         private val onGesture: (Trigger) -> Unit,
@@ -93,10 +90,8 @@ class ZoneOverlay(private val context: Context, private val wm: WindowManager) {
             color = Color.argb(90, 255, 255, 255)
             pathEffect = android.graphics.DashPathEffect(floatArrayOf(8 * density, 6 * density), 0f)
         }
-        private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(110, 255, 255, 255)
-            textSize = 14 * density
-            textAlign = Paint.Align.CENTER
+        private val icons = iconIds.mapNotNull { id ->
+            context.getDrawable(id)?.mutate()?.apply { setTint(Color.argb(150, 255, 255, 255)) }
         }
         private val rect = RectF()
 
@@ -147,7 +142,29 @@ class ZoneOverlay(private val context: Context, private val wm: WindowManager) {
             val inset = stroke.strokeWidth
             rect.set(inset, inset, width - inset, height - inset)
             canvas.drawRoundRect(rect, 12 * density, 12 * density, stroke)
-            canvas.drawText("$number", width / 2f, height / 2f + text.textSize / 3, text)
+            drawIcons(canvas)
+        }
+
+        /** Draws the linked actions' icons centred in the zone, wrapping onto extra rows if needed. */
+        private fun drawIcons(canvas: Canvas) {
+            if (icons.isEmpty()) return
+            val gap = 6 * density
+            var size = (22 * density).coerceAtMost(min(width, height) * 0.6f)
+            val perRow = max(1, ((width - gap) / (size + gap)).toInt())
+            val rows = (icons.size + perRow - 1) / perRow
+            if (rows * (size + gap) > height) size = max(8 * density, height / rows - gap)
+            val total = rows * size + (rows - 1) * gap
+            var y = (height - total) / 2f
+            icons.chunked(perRow).forEach { row ->
+                val rowW = row.size * size + (row.size - 1) * gap
+                var x = (width - rowW) / 2f
+                row.forEach { d ->
+                    d.setBounds(x.toInt(), y.toInt(), (x + size).toInt(), (y + size).toInt())
+                    d.draw(canvas)
+                    x += size + gap
+                }
+                y += size + gap
+            }
         }
     }
 }
