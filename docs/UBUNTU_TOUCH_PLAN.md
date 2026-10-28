@@ -4,7 +4,7 @@ This file lets a separate Claude chat (or anyone) build the Ubuntu Touch version
 without the history of the Android chat. Start the new chat with:
 
 > Build the Ubuntu Touch version of my Lock Gestures app. Read `docs/UBUNTU_TOUCH_PLAN.md`
-> in https://github.com/lewisw445/lockscreen-gestures and follow it.
+> in https://github.com/LewisWhiteDesign/touch-gesture-app and follow it.
 
 ## Decisions already made
 

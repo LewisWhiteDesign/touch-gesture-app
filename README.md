@@ -35,7 +35,7 @@ shape inside the zone on the lock screen runs the action. Zones can't overlap in
 
 ## Emulator (Android Studio)
 
-1. Clone this repo and open it in Android Studio.
+1. Clone https://github.com/LewisWhiteDesign/touch-gesture-app and open it in Android Studio.
 2. Device Manager → **7.6" Fold-in with outer display**, Android 16 (API 36). Fold it.
 3. Run, then enable the service under Settings → Accessibility on the emulator.
 4. In the app's Settings, turn off **Only on the lock screen** to test while unlocked.
