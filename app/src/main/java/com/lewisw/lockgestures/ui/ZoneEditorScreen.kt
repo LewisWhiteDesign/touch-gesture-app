@@ -1,5 +1,6 @@
 package com.lewisw.lockgestures.ui
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.lewisw.lockgestures.model.SourceKind
 import com.lewisw.lockgestures.model.Store
 import com.lewisw.lockgestures.model.TouchZone
+import com.lewisw.lockgestures.model.ZoneLayout
 import com.lewisw.lockgestures.service.DeviceState
 import kotlin.math.roundToInt
 
@@ -97,18 +99,12 @@ fun ZoneEditorScreen(onDone: () -> Unit) {
 
         fun move(id: Int, dx: Float, dy: Float) {
             val i = zones.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return
-            val z = zones[i]
-            val l = (z.left + dx / wPx).coerceIn(0f, 1f - z.width)
-            val t = (z.top + dy / hPx).coerceIn(topF, 1f - botF - z.height)
-            zones[i] = z.copy(left = l, top = t, right = l + z.width, bottom = t + z.height)
+            zones[i] = ZoneLayout.move(zones[i], dx / wPx, dy / hPx, zones.toList(), topF, 1f - botF)
         }
 
         fun resize(id: Int, dx: Float, dy: Float) {
             val i = zones.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return
-            val z = zones[i]
-            val r = (z.right + dx / wPx).coerceIn(z.left + minW, 1f)
-            val b = (z.bottom + dy / hPx).coerceIn(z.top + minH, 1f - botF)
-            zones[i] = z.copy(right = r, bottom = b)
+            zones[i] = ZoneLayout.resize(zones[i], dx / wPx, dy / hPx, zones.toList(), minW, minH, 1f - botF)
         }
 
         // Tapping empty space deselects
@@ -124,7 +120,7 @@ fun ZoneEditorScreen(onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                if (zones.isEmpty()) "Tap Add to create a zone" else "Drag a zone to move it.\nDrag its corner to resize.",
+                if (zones.isEmpty()) "Tap Add to create a zone" else "Drag a zone to move it.\nDrag its corner to resize.\nZones can't overlap.",
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium,
                 color = cs.onSurfaceVariant.copy(alpha = 0.7f),
@@ -200,12 +196,13 @@ fun ZoneEditorScreen(onDone: () -> Unit) {
             ) {
                 IconButton(onClick = {
                     val id = (zones.maxOfOrNull { it.id } ?: 0) + 1
-                    val w = 0.5f
-                    val h = 0.12f
-                    val l = (1f - w) / 2f
-                    val t = (0.3f + 0.08f * (zones.size % 5)).coerceIn(topF, 1f - botF - h)
-                    zones.add(TouchZone(id, l, t, l + w, t + h))
-                    selected = id
+                    val spot = ZoneLayout.freeSpot(id, zones.toList(), topF, 1f - botF, minW, minH)
+                    if (spot == null) {
+                        Toast.makeText(context, "No free space for another zone", Toast.LENGTH_SHORT).show()
+                    } else {
+                        zones.add(spot)
+                        selected = id
+                    }
                 }) { Icon(Icons.Filled.Add, "Add zone") }
                 IconButton(
                     onClick = { zones.removeAll { it.id == selected }; selected = null },

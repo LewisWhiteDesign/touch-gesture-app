@@ -13,7 +13,8 @@ enum class Trigger(val label: String) {
     SWIPE_RIGHT("Swipe Right"),
     SWIPE_LEFT("Swipe Left"),
     SWIPE_DOWN("Swipe Down"),
-    PRESS_HOLD("Press + Hold");
+    PRESS_HOLD("Press + Hold"),
+    DRAW("Draw Shape");
 
     /** The label adapts to the input type so the dropdowns read naturally. */
     fun labelFor(kind: SourceKind?): String = when {
@@ -49,6 +50,7 @@ enum class SourceKind(val label: String, val help: String = "") {
     fun validTriggers(): List<Trigger> = when {
         this == TOUCH -> Trigger.entries
         isVolume -> listOf(Trigger.SINGLE_TAP, Trigger.DOUBLE_TAP, Trigger.PRESS_HOLD)
+        // Drawing only makes sense on a touch zone
         else -> listOf(Trigger.SINGLE_TAP, Trigger.DOUBLE_TAP)
     }
 }
@@ -114,10 +116,13 @@ data class GestureFunction(
     val action: Action? = null,
     val appPackage: String? = null,
     val appLabel: String? = null,
+    /** For [Trigger.DRAW]: the user's recorded examples of the shape. */
+    val shapes: List<Shape> = emptyList(),
 ) {
     val isComplete: Boolean
         get() = trigger != null && source != null && action != null &&
-            (action != Action.OPEN_APP || appPackage != null)
+            (action != Action.OPEN_APP || appPackage != null) &&
+            (trigger != Trigger.DRAW || shapes.isNotEmpty())
 }
 
 data class Config(
@@ -160,6 +165,7 @@ data class Config(
                     f.action?.let { put("action", it.name) }
                     f.appPackage?.let { put("pkg", it) }
                     f.appLabel?.let { put("appLabel", it) }
+                    if (f.shapes.isNotEmpty()) put("shapes", ShapeRecognizer.toJson(f.shapes))
                 })
             }
         })
@@ -191,6 +197,7 @@ data class Config(
                                 ?.let { n -> Action.entries.firstOrNull { it.name == n } },
                             appPackage = f.optString("pkg").takeIf { it.isNotEmpty() },
                             appLabel = f.optString("appLabel").takeIf { it.isNotEmpty() },
+                            shapes = ShapeRecognizer.fromJson(f.optJSONArray("shapes")),
                         )
                     },
                     screenAspect = o.optDouble("aspect", 2520.0 / 1080.0).toFloat(),
@@ -209,4 +216,6 @@ data class AppSettings(
     val showZoneOutlines: Boolean = true,
     /** 0 = low, 1 = medium, 2 = high. */
     val motionSensitivity: Int = 1,
+    /** How closely a drawing must match: 0 = loose, 1 = normal, 2 = strict. */
+    val drawStrictness: Int = 1,
 )

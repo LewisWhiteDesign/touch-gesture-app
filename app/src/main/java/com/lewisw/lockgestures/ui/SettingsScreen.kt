@@ -113,6 +113,21 @@ fun SettingsScreen(resumeTick: Int, onBack: () -> Unit) {
                             )
                         }
                     }
+                    Text("Shape matching", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Loose", "Normal", "Strict").forEachIndexed { i, label ->
+                            FilterChip(
+                                selected = settings.drawStrictness == i,
+                                onClick = { Store.updateSettings { it.copy(drawStrictness = i) } },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                    Text(
+                        "Loose accepts sloppier drawings but may trigger by accident. Strict needs a closer match.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 

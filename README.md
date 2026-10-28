@@ -11,12 +11,17 @@ using tap/swipe zones you draw, the volume keys, or flicks of the phone.
 
 | Trigger | Zone | Action |
 |---|---|---|
-| Single/Double Tap, Swipe Up/Down/Left/Right, Press + Hold | Zone 1…n | Torch, Brightness ±, Silent mode — done directly |
+| Single/Double Tap, Swipe Up/Down/Left/Right, Press + Hold, **Draw Shape** | Zone 1…n | Torch, Brightness ±, Silent mode — done directly |
 | Single/Double Press, Press + Hold | Volume Up / Down | Wi-Fi, Bluetooth, Airplane, Hotspot, NFC, Battery saver — taps the Quick Settings tile |
 | Flick / Double Flick | Gyro Up/Down/Left/Right/Back/Forth | Open app, Close app, Close all apps — asks for PIN first |
 
 Everything runs inside this one app via an Accessibility Service (the only way an app may draw
 over the lock screen and read the volume keys).
+
+**Draw Shape:** pick it as the trigger, then draw your shape 3 times in the recorder. Drawing that
+shape inside the zone on the lock screen runs the action. Zones can't overlap in the editor.
+
+**Ubuntu Touch:** see [`docs/UBUNTU_TOUCH_PLAN.md`](docs/UBUNTU_TOUCH_PLAN.md).
 
 ## Install on the Fold 7
 

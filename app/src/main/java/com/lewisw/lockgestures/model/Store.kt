@@ -32,6 +32,7 @@ object Store {
             onlyWhenLocked = sp.getBoolean("only_locked", true),
             showZoneOutlines = sp.getBoolean("show_outlines", true),
             motionSensitivity = sp.getInt("motion_sensitivity", 1),
+            drawStrictness = sp.getInt("draw_strictness", 1),
         )
         _lastEvent.value = sp.getString("last_event", "None yet") ?: "None yet"
     }
@@ -51,6 +52,7 @@ object Store {
             .putBoolean("only_locked", s.onlyWhenLocked)
             .putBoolean("show_outlines", s.showZoneOutlines)
             .putInt("motion_sensitivity", s.motionSensitivity)
+            .putInt("draw_strictness", s.drawStrictness)
             .apply()
     }
 

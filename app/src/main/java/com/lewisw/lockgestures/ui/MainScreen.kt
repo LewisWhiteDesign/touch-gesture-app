@@ -1,5 +1,6 @@
 package com.lewisw.lockgestures.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -66,6 +68,7 @@ fun MainScreen(resumeTick: Int, onSetZones: () -> Unit, onSettings: () -> Unit) 
     val serviceOn = remember(resumeTick) { Permissions.accessibilityOn(context) }
     var confirmClear by remember { mutableStateOf(false) }
     var pickAppFor by remember { mutableStateOf<Long?>(null) }
+    var recordFor by remember { mutableStateOf<Long?>(null) }
 
     Scaffold(
         topBar = {
@@ -155,6 +158,7 @@ fun MainScreen(resumeTick: Int, onSetZones: () -> Unit, onSettings: () -> Unit) 
                                     },
                                     onDelete = { Store.updateConfig { c -> c.copy(functions = c.functions.filterNot { it.id == f.id }) } },
                                     onPickApp = { pickAppFor = f.id },
+                                    onRecord = { recordFor = f.id },
                                 )
                             }
                         }
@@ -195,6 +199,28 @@ fun MainScreen(resumeTick: Int, onSetZones: () -> Unit, onSettings: () -> Unit) 
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
         )
+    }
+
+    recordFor?.let { id ->
+        val f = config.functions.firstOrNull { it.id == id }
+        if (f == null) {
+            recordFor = null
+        } else {
+            // Other drawn shapes on the same zone, to warn about look-alikes
+            val others = config.functions
+                .filter { it.id != id && it.trigger == Trigger.DRAW && it.source == f.source && it.shapes.isNotEmpty() }
+                .associate { (it.action?.short ?: "another function") to it.shapes }
+            ShapeRecorderDialog(
+                initial = f.shapes,
+                others = others,
+                strictness = settings.drawStrictness,
+                onSave = { shapes ->
+                    Store.updateConfig { c -> c.copy(functions = c.functions.map { if (it.id == id) it.copy(shapes = shapes) else it }) }
+                    recordFor = null
+                },
+                onDismiss = { recordFor = null },
+            )
+        }
     }
 
     pickAppFor?.let { id ->
@@ -251,15 +277,23 @@ private fun FunctionRow(
     onChange: (GestureFunction) -> Unit,
     onDelete: () -> Unit,
     onPickApp: () -> Unit,
+    onRecord: () -> Unit,
 ) {
     val kind = f.source?.kind
-    val duplicate = f.isComplete && config.functions.count {
+    val duplicate = f.isComplete && f.trigger != Trigger.DRAW && config.functions.count {
         it.isComplete && it.trigger == f.trigger && it.source == f.source
     } > 1
 
     // Only offer combinations that make sense together.
     val triggerOptions = (kind?.validTriggers() ?: Trigger.entries).map { t ->
-        DropOption(t.labelFor(kind)) { onChange(f.copy(trigger = t)) }
+        DropOption(t.labelFor(kind)) {
+            if (t == Trigger.DRAW) {
+                onChange(f.copy(trigger = t))
+                if (f.shapes.isEmpty()) onRecord()
+            } else {
+                onChange(f.copy(trigger = t, shapes = emptyList()))
+            }
+        }
     }
     val sourceOptions = config.allSources()
         .filter { s -> f.trigger == null || f.trigger in s.kind.validTriggers() }
@@ -281,6 +315,23 @@ private fun FunctionRow(
             }
         }
 
+        if (f.trigger == Trigger.DRAW) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                if (f.shapes.isNotEmpty()) {
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp))
+                    ) {
+                        ShapePreview(f.shapes.first(), Modifier.matchParentSize(), MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+                TextButton(onClick = onRecord) {
+                    Text(if (f.shapes.isEmpty()) "Record the shape" else "Re-record shape (${f.shapes.size} samples)")
+                }
+            }
+        }
         if (f.action == Action.OPEN_APP) {
             TextButton(onClick = onPickApp) {
                 Text(f.appLabel?.let { "App: $it (tap to change)" } ?: "Choose which app to open")
@@ -288,6 +339,8 @@ private fun FunctionRow(
         }
         val hint = when {
             duplicate -> "Another function uses the same trigger and zone — both will run."
+            f.trigger == Trigger.DRAW && f.shapes.isEmpty() -> "Record the shape to finish this function."
+            f.trigger == Trigger.DRAW -> "Draw this shape inside the zone on the lock screen."
             kind != null && kind.isGyro -> kind.help
             f.action?.needsUnlock == true -> "Asks for your PIN first."
             f.action?.tileLabels?.isNotEmpty() == true -> "Taps the Quick Settings tile for you — no unlock needed."

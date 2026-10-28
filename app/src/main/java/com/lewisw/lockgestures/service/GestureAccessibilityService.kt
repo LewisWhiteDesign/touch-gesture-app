@@ -144,10 +144,11 @@ class GestureAccessibilityService : AccessibilityService() {
                     zone = z,
                     icons = linked.mapNotNull { it.action?.icon }.distinct(),
                     waitForDoubleTap = linked.any { it.trigger == Trigger.DOUBLE_TAP },
+                    shapes = linked.filter { it.trigger == Trigger.DRAW }.associate { it.id to it.shapes },
                 )
             }
-            overlay.show(specs, w, h, settings.showZoneOutlines) { id, trigger ->
-                fire(Source(SourceKind.TOUCH, id), trigger)
+            overlay.show(specs, w, h, settings.showZoneOutlines, settings.drawStrictness) { id, trigger, fnId ->
+                fire(Source(SourceKind.TOUCH, id), trigger, fnId)
             }
         } else {
             overlay.hide()
@@ -229,9 +230,11 @@ class GestureAccessibilityService : AccessibilityService() {
     private fun functionsFor(source: Source): List<GestureFunction> =
         Store.config.value.functions.filter { it.isComplete && it.source == source }
 
-    private fun fire(source: Source, trigger: Trigger) {
+    private fun fire(source: Source, trigger: Trigger, functionId: Long? = null) {
         if (!active) return
-        val matches = functionsFor(source).filter { it.trigger == trigger }
+        val matches = functionsFor(source).filter {
+            it.trigger == trigger && (functionId == null || it.id == functionId)
+        }
         if (matches.isEmpty()) return
         vibrate()
         val config = Store.config.value
