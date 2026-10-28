@@ -5,7 +5,7 @@ plugins {
 }
 
 // Build number from CI (falls back to 1 for local builds)
-val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+val buildNumber = (System.getenv("BUILD_NUMBER") ?: System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 
 android {
     namespace = "com.lewisw.lockgestures"

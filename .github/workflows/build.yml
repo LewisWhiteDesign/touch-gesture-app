@@ -14,6 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Builds 1-4 were made in the old lewisw445 repo; carry on numbering after them
+      # so new APKs always install over older ones.
+      - name: Set build number
+        run: echo "BUILD_NUMBER=$(( ${{ github.run_number }} + 4 ))" >> "$GITHUB_ENV"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -26,7 +31,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk "out/LockGestures-0.1.${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "out/LockGestures-0.1.${BUILD_NUMBER}.apk"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -37,8 +42,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Lock Gestures 0.1.${{ github.run_number }}
+          tag_name: build-${{ env.BUILD_NUMBER }}
+          name: Lock Gestures 0.1.${{ env.BUILD_NUMBER }}
           body: |
             Built from commit ${{ github.sha }}.
             Download the .apk below on your phone to install or update.
